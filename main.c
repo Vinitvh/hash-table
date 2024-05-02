@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,8 +7,8 @@
 
 // HashTable item
 typedef struct HT_Item {
-  char *key;
-  char *val;
+  char key[256];
+  char val[512];
 } HT_Item;
 
 // HashTable
@@ -25,16 +26,18 @@ unsigned int hash(char *key) {
 
 HT_Item *create_item(char *key, char *val) {
   HT_Item *item = malloc(sizeof(HT_Item));
-  item->key = malloc(strlen(key) + 1);
-  item->val = malloc(strlen(val) + 1);
-  strcpy(item->key, key);
-  strcpy(item->val, val);
+  if (item == NULL) {
+    fprintf(stderr, "Failed to allocate memory for item");
+    exit(1);
+  }
+  snprintf(item->key, strlen(key) + 1, "%s", key);
+  snprintf(item->val, strlen(val) + 1, "%s", val);
   return item;
 }
 
 HashTable *create_table() {
   HashTable *table = (HashTable *)malloc(sizeof(HashTable));
-  table->items = (HT_Item *)calloc(HASHTABLE_SIZE, sizeof(HT_Item));
+  table->items = (HT_Item **)calloc(HASHTABLE_SIZE, sizeof(HT_Item));
   for (int i = 0; i < HASHTABLE_SIZE; i++) {
     table->items[i] = NULL;
   }
@@ -42,18 +45,12 @@ HashTable *create_table() {
   return table;
 }
 
-void free_item(HT_Item *item) {
-  free(item->key);
-  free(item->val);
-  free(item);
-}
-
 void free_table(HashTable *table) {
   for (int i = 0; i < HASHTABLE_SIZE; i++) {
     HT_Item *item = table->items[i];
 
     if (item != NULL) {
-      free_item(item);
+      free(item);
     }
   }
 
@@ -61,34 +58,56 @@ void free_table(HashTable *table) {
   free(table);
 }
 
-HashTable *insert(HashTable *table, char *key, char *val) {
+void handle_collision(HashTable *table, char *key, char *val) {
   unsigned int index = hash(key);
   for (int i = 0; i < HASHTABLE_SIZE; i++) {
-    // if (table->items != NULL) {
-    //   printf("Space occupied");
-    //   exit(1);
-    // }
-    strncpy(table->items[index]->val, val, strlen(val));
+    if (table->items[i] != NULL) {
+      index = (index + i) % HASHTABLE_SIZE;
+    }
   }
-  return table;
+  HT_Item *item = create_item(key, val);
+  table->items[index] = item;
+}
+
+void insert(HashTable *table, char *key, char *val) {
+  HT_Item *item = create_item(key, val);
+  unsigned int index = hash(key);
+  HT_Item *current_item = table->items[index];
+  if (current_item == NULL) {
+    table->items[index] = item;
+  } else {
+    handle_collision(table, key, val);
+  }
+}
+
+char *search(HashTable *table, char *key) {
+  unsigned int index = hash(key);
+  HT_Item *item = table->items[index];
+  if (item != NULL) {
+    if (strcmp(item->key, key) == 0) {
+      return item->val;
+    }
+  }
+  return NULL;
 }
 
 void print_table(HashTable *table) {
-  if (table == NULL) {
-    printf("No hashtable to print");
-  }
   for (int i = 0; i < HASHTABLE_SIZE; i++) {
     if (table->items[i]) {
-      printf("%s\n", table->items[i]->val);
+      printf("%d. %s\n", i, table->items[i]->val);
     } else {
-      printf("%d. _____\n", i);
+      printf("%d. -----\n", i);
     }
   }
 }
 
 int main(void) {
   HashTable *table = create_table();
-  insert(table, "one", "10");
+  insert(table, "one", "50");
+  insert(table, "one", "40");
   print_table(table);
+  // char *val = search(table, "one");
+  // printf("%s\n", val);
+  free_table(table);
   return 0;
 }
